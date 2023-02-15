@@ -115,6 +115,14 @@ def closing_iterator_wrapper(iterable, close):
         close()  # will fire request_finished
         request_finished.connect(close_old_connections)
 
+async def async_closing_iterator_wrapper(iterable, close):
+    try:
+        async for chunk in iterable:
+            yield chunk
+    finally:
+        request_finished.disconnect(close_old_connections)
+        close()  # will fire request_finished
+        request_finished.connect(close_old_connections)
 
 def conditional_content_removal(request, response):
     """
@@ -223,9 +231,7 @@ class AsyncClientHandler(BaseHandler):
         response.asgi_request = request
         # Emulate a server by calling the close method on completion.
         if response.streaming:
-            response.streaming_content = await sync_to_async(
-                closing_iterator_wrapper, thread_sensitive=False
-            )(
+            response.streaming_content = async_closing_iterator_wrapper(
                 response.streaming_content,
                 response.close,
             )
